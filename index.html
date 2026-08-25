@@ -1,1 +1,1085 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duel Masters Simulator - 修正版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; color: white; user-select: none; }
+        .card { 
+            transition: transform 0.2s, box-shadow 0.2s; 
+            transform-origin: center;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+    </style>
+</head>
+<body class="font-sans h-screen w-screen flex flex-col md:flex-row">
 
+    <!-- GUI Area -->
+    <div class="flex-1 flex flex-col p-2 gap-2 h-[60vh] md:h-full w-full md:w-3/4 overflow-y-auto relative">
+        
+        <!-- Player 2 Area (Top) -->
+        <div class="flex-1 border-2 border-red-900 bg-slate-800 rounded-lg flex flex-col p-2 gap-2 shadow-lg">
+            <!-- P2 Extra Zones Row (SuperDim, SuperGR, Graveyard) -->
+            <div class="flex justify-start items-center px-4 gap-6 bg-slate-900/40 rounded p-2.5 border border-slate-700/60 shrink-0">
+                <div class="flex gap-2 items-center">
+                    <div class="text-xs md:text-sm text-purple-400 font-bold cursor-pointer hover:underline" onclick="openZoneModal(state.p2, 'superdim', 'プレイヤー2 超次元ゾーン')">超次元: <span id="p2-superdim-count">0</span>枚</div>
+                    <div id="p2-superdim" class="flex gap-1 min-h-[4rem] min-w-[7rem] items-center bg-slate-900/80 px-2 rounded border border-slate-700 cursor-pointer" onclick="openZoneModal(state.p2, 'superdim', 'プレイヤー2 超次元ゾーン')"></div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <div class="text-xs md:text-sm text-pink-400 font-bold cursor-pointer hover:underline" onclick="openZoneModal(state.p2, 'supergr', 'プレイヤー2 超GRゾーン')">超GR: <span id="p2-supergr-count">0</span>枚</div>
+                    <div id="p2-supergr" class="flex gap-1 min-h-[4rem] min-w-[7rem] items-center bg-slate-900/80 px-2 rounded border border-slate-700 cursor-pointer" onclick="openZoneModal(state.p2, 'supergr', 'プレイヤー2 超GRゾーン')"></div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <div class="text-xs md:text-sm text-gray-300 font-bold cursor-pointer hover:underline" onclick="openZoneModal(state.p2, 'graveyard', 'プレイヤー2 墓地')">墓地: <span id="p2-graveyard-count">0</span>枚</div>
+                    <div id="p2-graveyard" class="flex gap-1 min-h-[4rem] min-w-[7rem] items-center bg-slate-900/80 px-2 rounded border border-slate-700 cursor-pointer" onclick="openZoneModal(state.p2, 'graveyard', 'プレイヤー2 墓地')"></div>
+                </div>
+            </div>
+
+            <!-- P2 Hand Row (Wider hand area) -->
+            <div class="flex flex-col gap-1 shrink-0">
+                <div class="text-sm text-blue-300 font-bold px-1">プレイヤー2 手札</div>
+                <div id="p2-hand" class="flex justify-start gap-4 min-h-[14rem] overflow-x-auto flex-1 bg-slate-900/60 rounded p-4 border border-slate-700"></div>
+            </div>
+            
+            <!-- P2 Main Zones: Deck, Shields -->
+            <div class="flex justify-between items-center min-h-[8rem] px-4 shrink-0">
+                <div id="p2-deck" onclick="openZoneModal(state.p2, 'deck', 'プレイヤー2 山札')" class="w-24 h-32 md:w-28 md:h-36 bg-gray-600 rounded flex flex-col items-center justify-center text-sm shadow-inner cursor-pointer hover:ring-2 hover:ring-purple-400 transition text-center font-bold">山札<br><span id="p2-deck-count">0</span>枚</div>
+                <div id="p2-shield" class="flex gap-4 overflow-x-auto py-1"></div>
+            </div>
+
+            <!-- P2 Battle Zone -->
+            <div id="p2-bz" class="flex-1 flex justify-center items-center gap-4 bg-slate-700/50 rounded min-h-[11rem] overflow-x-auto px-4"></div>
+            
+            <!-- P2 Mana Zone -->
+            <div id="p2-mana" class="flex justify-center items-end gap-4 min-h-[11rem] overflow-x-auto px-2"></div>
+        </div>
+        
+        <!-- Center Info Bar -->
+        <div class="h-16 flex justify-between items-center bg-gray-800 rounded-lg border border-gray-600 px-6 shadow-md shrink-0">
+            <div class="flex items-center gap-4">
+                <span id="turn-info" class="text-xl font-extrabold text-white">プレイヤー1 ターン</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="drawCard(state.currentTurnPlayer || state.p1, 1)" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded shadow transition active:scale-95 text-sm">ドロー</button>
+                <button id="btn-sandbox" onclick="toggleSandbox()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded shadow transition active:scale-95 text-sm animate-pulse">サンドボックス: ON</button>
+                <button onclick="openDeckEditor()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold px-4 py-2 rounded shadow transition active:scale-95 text-sm">デッキ編集</button>
+                <button onclick="resetGamePrompt()" class="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2 rounded shadow transition active:scale-95 text-sm">ゲームリセット</button>
+                <button onclick="endTurn()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2 rounded shadow transition active:scale-95">ターン終了</button>
+            </div>
+        </div>
+
+        <!-- Player 1 Area (Bottom) -->
+        <div class="flex-1 border-2 border-blue-900 bg-slate-800 rounded-lg flex flex-col p-2 gap-2 shadow-lg">
+            <!-- P1 Mana Zone -->
+            <div id="p1-mana" class="flex justify-center items-start gap-4 min-h-[11rem] overflow-x-auto px-2"></div>
+            
+            <!-- P1 Battle Zone -->
+            <div id="p1-bz" class="flex-1 flex justify-center items-center gap-4 bg-slate-700/50 rounded min-h-[11rem] overflow-x-auto px-4"></div>
+            
+            <!-- P1 Main Zones: Deck, Shields -->
+            <div class="flex justify-between items-center min-h-[8rem] px-4 shrink-0">
+                <div id="p1-deck" onclick="openZoneModal(state.p1, 'deck', 'プレイヤー1 山札')" class="w-24 h-32 md:w-28 md:h-36 bg-gray-600 rounded flex flex-col items-center justify-center text-sm shadow-inner cursor-pointer hover:ring-2 hover:ring-purple-400 transition text-center font-bold">山札<br><span id="p1-deck-count">0</span>枚</div>
+                <div id="p1-shield" class="flex gap-4 overflow-x-auto py-1"></div>
+            </div>
+
+            <!-- P1 Hand Row (Wider hand area) -->
+            <div class="flex flex-col gap-1 shrink-0">
+                <div class="text-sm text-blue-300 font-bold px-1">プレイヤー1 手札</div>
+                <div id="p1-hand" class="flex justify-start gap-4 min-h-[14rem] overflow-x-auto flex-1 bg-slate-900/60 rounded p-4 border border-slate-700"></div>
+            </div>
+
+            <!-- P1 Extra Zones Row (SuperDim, SuperGR, Graveyard) -->
+            <div class="flex justify-start items-center px-4 gap-6 bg-slate-900/40 rounded p-2.5 border border-slate-700/60 shrink-0">
+                <div class="flex gap-2 items-center">
+                    <div class="text-xs md:text-sm text-purple-400 font-bold cursor-pointer hover:underline" onclick="openZoneModal(state.p1, 'superdim', 'プレイヤー1 超次元ゾーン')">超次元: <span id="p1-superdim-count">0</span>枚</div>
+                    <div id="p1-superdim" class="flex gap-1 min-h-[4rem] min-w-[7rem] items-center bg-slate-900/80 px-2 rounded border border-slate-700 cursor-pointer" onclick="openZoneModal(state.p1, 'superdim', 'プレイヤー1 超次元ゾーン')"></div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <div class="text-xs md:text-sm text-pink-400 font-bold cursor-pointer hover:underline" onclick="openZoneModal(state.p1, 'supergr', 'プレイヤー1 超GRゾーン')">超GR: <span id="p1-supergr-count">0</span>枚</div>
+                    <div id="p1-supergr" class="flex gap-1 min-h-[4rem] min-w-[7rem] items-center bg-slate-900/80 px-2 rounded border border-slate-700 cursor-pointer" onclick="openZoneModal(state.p1, 'supergr', 'プレイヤー1 超GRゾーン')"></div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <div class="text-xs md:text-sm text-gray-300 font-bold cursor-pointer hover:underline" onclick="openZoneModal(state.p1, 'graveyard', 'プレイヤー1 墓地')">墓地: <span id="p1-graveyard-count">0</span>枚</div>
+                    <div id="p1-graveyard" class="flex gap-1 min-h-[4rem] min-w-[7rem] items-center bg-slate-900/80 px-2 rounded border border-slate-700 cursor-pointer" onclick="openZoneModal(state.p1, 'graveyard', 'プレイヤー1 墓地')"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLI Area -->
+    <div class="w-full md:w-1/4 h-[40vh] md:h-full flex flex-col bg-black border-t md:border-t-0 md:border-l border-gray-700 shadow-2xl">
+        <div class="bg-gray-800 text-center py-2 text-sm font-bold text-gray-300 shadow">ターミナル / CLI</div>
+        <div id="cli-output" class="flex-1 overflow-y-auto p-3 font-mono text-xs md:text-sm text-green-400 flex flex-col gap-1 break-words">
+            <div class="text-blue-300">デュエル・マスターズ シミュレーターへようこそ</div>
+            <div class="text-blue-300">'help' でコマンド一覧。サンドボックスONで自由移動可能。</div>
+        </div>
+        <div class="p-3 bg-gray-900 flex items-center border-t border-gray-700">
+            <span class="text-green-500 font-bold mr-2">></span>
+            <input id="cli-input" type="text" class="bg-transparent outline-none flex-1 font-mono text-green-400 placeholder-green-800" placeholder="コマンドを入力..." autocomplete="off">
+        </div>
+    </div>
+
+    <!-- Victory Overlay -->
+    <div id="victory-overlay" class="hidden absolute inset-0 bg-black/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+        <div id="victory-text" class="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600 mb-8 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)] text-center px-4"></div>
+        <button onclick="resetGame()" class="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 text-white px-8 py-4 rounded-xl text-2xl font-bold shadow-lg transition active:scale-95 border border-blue-400">もう一度遊ぶ</button>
+    </div>
+
+    <!-- Deck & Extra Editor Modal (Wider) -->
+    <div id="deck-editor-modal" class="hidden absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-[95vw] h-[92vh] flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
+                <h2 class="text-xl font-bold text-white">デッキ・超次元・超GR 編集</h2>
+                <button onclick="closeDeckEditor()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-3 text-xs text-gray-300 border-b border-gray-700 bg-gray-900/50 shrink-0">
+                書式: <code class="bg-black px-1 rounded text-green-400">枚数, カード名, 種類(クリーチャー/呪文/クロスギア/城/G城/D2フィールド/その他フィールド/タマシード/キングセル), コスト, パワー, ブレイカー数, 効果</code> (「//」や「#」でコメント行可)
+            </div>
+            <div class="flex-1 flex flex-col md:flex-row gap-6 p-6 overflow-hidden">
+                <!-- P1 Editor -->
+                <div class="flex-1 flex flex-col gap-3 overflow-y-auto">
+                    <label class="text-blue-400 font-bold text-sm">プレイヤー1 デッキ (40枚)</label>
+                    <textarea id="p1-deck-input" class="h-44 bg-gray-900 text-green-400 font-mono text-xs p-3 rounded border border-gray-700 outline-none focus:border-blue-500 resize-none whitespace-pre"></textarea>
+                    
+                    <div class="flex gap-4">
+                        <div class="flex-1 flex flex-col gap-1">
+                            <label class="text-purple-400 font-bold text-xs">プレイヤー1 超次元ゾーン</label>
+                            <textarea id="p1-superdim-input" class="h-32 bg-gray-900 text-purple-300 font-mono text-xs p-3 rounded border border-gray-700 outline-none focus:border-purple-500 resize-none whitespace-pre"></textarea>
+                        </div>
+                        <div class="flex-1 flex flex-col gap-1">
+                            <label class="text-pink-400 font-bold text-xs">プレイヤー1 超GRゾーン</label>
+                            <textarea id="p1-supergr-input" class="h-32 bg-gray-900 text-pink-300 font-mono text-xs p-3 rounded border border-gray-700 outline-none focus:border-pink-500 resize-none whitespace-pre"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <!-- P2 Editor -->
+                <div class="flex-1 flex flex-col gap-3 overflow-y-auto">
+                    <label class="text-red-400 font-bold text-sm">プレイヤー2 デッキ (40枚)</label>
+                    <textarea id="p2-deck-input" class="h-44 bg-gray-900 text-green-400 font-mono text-xs p-3 rounded border border-gray-700 outline-none focus:border-red-500 resize-none whitespace-pre"></textarea>
+                    
+                    <div class="flex gap-4">
+                        <div class="flex-1 flex flex-col gap-1">
+                            <label class="text-purple-400 font-bold text-xs">プレイヤー2 超次元ゾーン</label>
+                            <textarea id="p2-superdim-input" class="h-32 bg-gray-900 text-purple-300 font-mono text-xs p-3 rounded border border-gray-700 outline-none focus:border-purple-500 resize-none whitespace-pre"></textarea>
+                        </div>
+                        <div class="flex-1 flex flex-col gap-1">
+                            <label class="text-pink-400 font-bold text-xs">プレイヤー2 超GRゾーン</label>
+                            <textarea id="p2-supergr-input" class="h-32 bg-gray-900 text-pink-300 font-mono text-xs p-3 rounded border border-gray-700 outline-none focus:border-pink-500 resize-none whitespace-pre"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end gap-4 shrink-0">
+                <button onclick="closeDeckEditor()" class="px-5 py-2.5 bg-gray-600 hover:bg-gray-500 rounded text-white font-bold transition">キャンセル</button>
+                <button onclick="applyDeckAndRestart()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded text-white font-bold transition">適用して再スタート</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sandbox Move Modal (Restricted to same player's zones) -->
+    <div id="sandbox-modal" class="hidden absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-gray-800 border-2 border-purple-500 rounded-lg shadow-2xl w-full max-w-md flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold text-purple-400">移動先を選択 (Free Move)</h2>
+                    <p id="sandbox-target-name" class="text-gray-300 text-sm mt-1"></p>
+                </div>
+                <button onclick="tapCardFromModal()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded transition shadow">タップ切替</button>
+            </div>
+            <div class="p-4 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+                <div>
+                    <h3 id="sandbox-owner-label" class="text-blue-400 font-bold mb-2">移動先のゾーン (同一プレイヤー内)</h3>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="executeMoveToSamePlayer('hand')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">手札</button>
+                        <button onclick="executeMoveToSamePlayer('mana')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">マナゾーン</button>
+                        <button onclick="executeMoveToSamePlayer('bz')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">バトルゾーン</button>
+                        <button onclick="executeMoveToSamePlayer('shield')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">シールド</button>
+                        <button onclick="executeMoveToSamePlayer('graveyard')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">墓地</button>
+                        <button onclick="executeMoveToSamePlayer('superdim')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">超次元</button>
+                        <button onclick="executeMoveToSamePlayer('supergr')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">超GR</button>
+                        <button onclick="executeMoveToSamePlayer('deck')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">山札 (上)</button>
+                        <button onclick="executeMoveToSamePlayer('deck_bottom')" class="bg-gray-700 hover:bg-purple-600 p-2 rounded text-sm text-white transition">山札 (下)</button>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end">
+                <button onclick="closeMoveModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white font-bold transition">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone View Modal (Inspector) -->
+    <div id="zone-view-modal" class="hidden absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-gray-800 border-2 border-purple-500 rounded-lg shadow-2xl w-full max-w-4xl flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 id="zone-view-title" class="text-xl font-bold text-purple-400">ゾーン詳細</h2>
+                <button onclick="closeZoneModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div id="zone-view-content" class="p-4 flex flex-wrap gap-4 overflow-y-auto justify-center flex-1">
+                <!-- Cards injected dynamically -->
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end">
+                <button onclick="closeZoneModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white font-bold transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class Card {
+            constructor(name, type, cost, power, breaker = 1, effect = null) {
+                this.name = name;
+                this.type = type; // creature, spell, crossgear, castle, gcastle, d2field, field, tamaseed, kingcell, psychic, gr
+                this.cost = cost;
+                this.power = power;
+                this.breaker = breaker;
+                this.effect = effect;
+                
+                this.tapped = false;
+                this.summoningSickness = false;
+            }
+        }
+
+        const state = {
+            p1: null,
+            p2: null,
+            turn: 1,
+            currentTurnPlayer: null,
+            winner: null,
+            sandboxMode: true, // Default ON
+            sandboxTarget: null
+        };
+
+        const defaultDeckStr = `// 枚数, カード名, 種類(クリーチャー/呪文/クロスギア/城/G城/D2フィールド/その他フィールド/タマシード/キングセル), コスト, パワー, ブレイカー数, 効果
+10, ブロンズ・ゴブリン, クリーチャー, 1, 1000, 1,
+10, シルバー・ナイト, クリーチャー, 3, 3000, 1,
+10, ゴールド・ドラゴン, クリーチャー, 5, 5000, 2,
+10, エナジー・ドロー, 呪文, 3, 0, 0, draw_2`;
+
+        const defaultSuperDimStr = `// 超次元ゾーン用カード
+2, 激竜王ガイアール・オウドラゴン, psychic, 24, 25000, 3,
+2, 時空の火焔ボルシャック・ドラゴン, psychic, 7, 6000, 2`;
+
+        const defaultSuperGRStr = `// 超GRゾーン用カード
+6, ヤッタレロボ, gr, 2, 2000, 1,
+6, 全能ゼンノー, gr, 4, 3000, 1`;
+
+        let p1DeckStr = defaultDeckStr;
+        let p2DeckStr = defaultDeckStr;
+        let p1SuperDimStr = defaultSuperDimStr;
+        let p2SuperDimStr = defaultSuperDimStr;
+        let p1SuperGRStr = defaultSuperGRStr;
+        let p2SuperGRStr = defaultSuperGRStr;
+
+        let selectedAttackerIndex = null;
+        let revealedShields = {};
+        let shieldCounters = {}; // Tracks next persistent shield ID per player
+
+        function createPlayer(id, deckStr, superDimStr, superGRStr) {
+            shieldCounters[id] = 5;
+            return {
+                id: id,
+                deck: createDeck(deckStr),
+                superdim: createDeck(superDimStr),
+                supergr: createDeck(superGRStr),
+                hand: [],
+                shield: [], // Elements will carry { card, shieldId }
+                mana: [],
+                bz: [],
+                graveyard: []
+            };
+        }
+
+        function parseCardType(typeStr) {
+            const raw = typeStr.trim().toLowerCase();
+            const map = {
+                'クリーチャー': 'creature', 'creature': 'creature', 'c': 'creature',
+                '呪文': 'spell', 'spell': 'spell', 's': 'spell',
+                'クロスギア': 'crossgear', 'crossgear': 'crossgear',
+                '城': 'castle', 'castle': 'castle',
+                'g城': 'gcastle', 'gcastle': 'gcastle',
+                'd2フィールド': 'd2field', 'd2フィールド': 'd2field',
+                'その他フィールド': 'field', 'フィールド': 'field', 'field': 'field',
+                'タマシード': 'tamaseed', 'tamaseed': 'tamaseed',
+                'キングセル': 'kingcell', 'kingcell': 'kingcell',
+                '超次元': 'psychic', 'psychic': 'psychic', 'p': 'psychic',
+                '超gr': 'gr', 'gr': 'gr'
+            };
+            return map[raw] || 'creature';
+        }
+
+        function createDeck(deckText) {
+            let deck = [];
+            const lines = deckText.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (!line || line.startsWith('//') || line.startsWith('#')) continue;
+                const parts = line.split(',').map(s => s.trim());
+                if (parts.length >= 4) {
+                    const count = parseInt(parts[0]) || 1;
+                    const name = parts[1] || "Unknown";
+                    const type = parseCardType(parts[2]);
+                    const cost = parseInt(parts[3]) || 0;
+                    const power = parseInt(parts[4]) || 0;
+                    const breaker = parseInt(parts[5]) || (['creature', 'psychic', 'gr', 'kingcell'].includes(type) ? 1 : 0);
+                    const effect = parts[6] || null;
+
+                    for (let i = 0; i < count; i++) {
+                        deck.push(new Card(name, type, cost, power, breaker, effect));
+                    }
+                }
+            }
+            
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            return deck;
+        }
+
+        function initGame() {
+            document.getElementById('victory-overlay').classList.add('hidden');
+            state.winner = null;
+            selectedAttackerIndex = null;
+            revealedShields = {};
+            
+            state.p1 = createPlayer(1, p1DeckStr, p1SuperDimStr, p1SuperGRStr);
+            state.p2 = createPlayer(2, p2DeckStr, p2SuperDimStr, p2SuperGRStr);
+            
+            for(let i=0; i<5; i++) {
+                if(state.p1.deck.length > 0) {
+                    state.p1.shield.push({ card: state.p1.deck.pop(), shieldId: i });
+                }
+                if(state.p2.deck.length > 0) {
+                    state.p2.shield.push({ card: state.p2.deck.pop(), shieldId: i });
+                }
+            }
+            
+            drawCard(state.p1, 5, true);
+            drawCard(state.p2, 5, true);
+            
+            state.turn = 1;
+            state.currentTurnPlayer = state.p1;
+            
+            log('ゲームが開始されました。サンドボックス機能がONです（自由に移動・操作可能）。', 'text-purple-300 font-bold');
+            log("'help' と入力するといつでもコマンド一覧を確認できます。", 'text-blue-300');
+        }
+
+        function drawCard(player, count = 1, initial = false) {
+            if (!player) player = state.currentTurnPlayer || state.p1;
+            for(let i=0; i<count; i++) {
+                if(player.deck.length === 0) {
+                    const opp = player === state.p1 ? state.p2 : state.p1;
+                    state.winner = opp.id;
+                    log(`プレイヤー${player.id}の山札がなくなりました。プレイヤー${opp.id}の勝利です！`, 'text-red-500 font-bold');
+                    checkWin();
+                    return;
+                }
+                player.hand.push(player.deck.pop());
+            }
+            if(!initial) log(`プレイヤー${player.id}がカードを${count}枚ドローしました。`);
+            render();
+        }
+
+        function payMana(player, cost) {
+            let untappedMana = player.mana.filter(c => !c.tapped);
+            if(untappedMana.length < cost) return false;
+            
+            for(let i=0; i<cost; i++) {
+                untappedMana[i].tapped = true;
+            }
+            return true;
+        }
+
+        function resolveSpell(player, card) {
+            if (card.effect === 'draw_2') {
+                log(`${card.name}の効果処理: カードを2枚引きます。`, 'text-blue-300');
+                drawCard(player, 2);
+            }
+        }
+
+        function destroyByRef(player, card) {
+            const idx = player.bz.indexOf(card);
+            if (idx > -1) {
+                player.bz.splice(idx, 1);
+                if (card.type === 'psychic') {
+                    player.superdim.push(card);
+                    log(`'${card.name}' は超次元ゾーンに戻りました。`, 'text-purple-300');
+                } else if (card.type === 'gr') {
+                    player.supergr.push(card);
+                    log(`'${card.name}' は超GRゾーンに戻りました。`, 'text-pink-300');
+                } else {
+                    player.graveyard.push(card);
+                }
+            }
+        }
+
+        function endTurn() {
+            if (state.winner) return;
+            state.currentTurnPlayer = (state.currentTurnPlayer === state.p1) ? state.p2 : state.p1;
+            state.turn++;
+            log(`=== ターン ${state.turn} : プレイヤー${state.currentTurnPlayer.id} ===`, 'text-yellow-400 font-bold mt-2');
+            render();
+        }
+
+        function resetGame() {
+            initGame();
+            log("ゲームをリセットしました。", "text-yellow-400 font-bold");
+            render();
+        }
+
+        function resetGamePrompt() {
+            resetGame();
+        }
+
+        function executeCommand(cmdStr) {
+            if (state.winner) throw "ゲームはすでに終了しています。";
+
+            const args = cmdStr.trim().split(/\s+/);
+            const cmd = args[0].toLowerCase();
+
+            if (cmd === 'help') {
+                showHelp();
+                return;
+            }
+            if (cmd === 'reset') {
+                resetGame();
+                return;
+            }
+            if (cmd === 'draw') {
+                let count = 1;
+                if (args[1]) {
+                    count = parseInt(args[1]);
+                    if (isNaN(count) || count < 1) throw "ドローする枚数が不正です。";
+                }
+                drawCard(state.currentTurnPlayer, count);
+                return;
+            }
+            if (cmd === 'editdeck') {
+                openDeckEditor();
+                return;
+            }
+            if (cmd === 'move') {
+                if (args.length < 6) throw "使用方法: move <p1|p2> <ゾーン> <インデックス> <p1|p2> <ゾーン>";
+                const pSrcId = args[1].toLowerCase() === 'p1' ? 1 : (args[1].toLowerCase() === 'p2' ? 2 : null);
+                const zSrc = mapZoneName(args[2].toLowerCase());
+                const iSrc = parseInt(args[3]);
+                const pDstId = args[4].toLowerCase() === 'p1' ? 1 : (args[4].toLowerCase() === 'p2' ? 2 : null);
+                const zDst = mapZoneName(args[5].toLowerCase());
+
+                if (!pSrcId || !zSrc || isNaN(iSrc) || !pDstId || !zDst) throw "引数が不正です。";
+                moveCard(pSrcId, zSrc, iSrc, pDstId, zDst);
+                return;
+            }
+            if (cmd === 'end') {
+                endTurn();
+                return;
+            }
+            if (cmd === 'charge') {
+                const idx = parseInt(args[1]);
+                if (isNaN(idx)) throw "使用方法: charge <手札インデックス>";
+                const card = state.currentTurnPlayer.hand[idx];
+                if (!card) throw "手札のインデックスが不正です。";
+                
+                state.currentTurnPlayer.hand.splice(idx, 1);
+                state.currentTurnPlayer.mana.push(card);
+                log(`'${card.name}' をマナゾーンにチャージしました。`);
+                return;
+            }
+            if (cmd === 'play') {
+                const idx = parseInt(args[1]);
+                if (isNaN(idx)) throw "使用方法: play <手札インデックス>";
+                const card = state.currentTurnPlayer.hand[idx];
+                if (!card) throw "手札のインデックスが不正です。";
+
+                if (!payMana(state.currentTurnPlayer, card.cost)) {
+                    throw `アンタップマナが不足しています。コストは ${card.cost} です。`;
+                }
+
+                state.currentTurnPlayer.hand.splice(idx, 1);
+                
+                const permanents = ['creature', 'crossgear', 'castle', 'gcastle', 'd2field', 'field', 'tamaseed', 'kingcell', 'psychic', 'gr'];
+                if (permanents.includes(card.type)) {
+                    card.summoningSickness = true;
+                    state.currentTurnPlayer.bz.push(card);
+                    log(`'${card.name}' をバトルゾーンに出しました。`);
+                } else if (card.type === 'spell') {
+                    log(`'${card.name}' を唱えました。`);
+                    resolveSpell(state.currentTurnPlayer, card);
+                    state.currentTurnPlayer.graveyard.push(card);
+                }
+                return;
+            }
+            if (cmd === 'attack') {
+                const myIdx = parseInt(args[1]);
+                const target = args[2];
+                if (isNaN(myIdx) || !target) throw "使用方法: attack <バトルゾーンインデックス> p または attack <バトルゾーンインデックス> <相手バトルゾーンインデックス>";
+                
+                const attacker = state.currentTurnPlayer.bz[myIdx];
+                if (!attacker) throw "アタッカーの指定が不正です。";
+                if (attacker.tapped) throw "アタッカーはすでにタップされています。";
+
+                const opp = (state.currentTurnPlayer === state.p1) ? state.p2 : state.p1;
+                
+                if (target.toLowerCase() === 'p') {
+                    attacker.tapped = true;
+                    log(`${attacker.name} がプレイヤー${opp.id}に攻撃！`, 'text-orange-400 font-bold');
+                    if (opp.shield.length > 0) {
+                        let breaks = Math.min(attacker.breaker, opp.shield.length);
+                        for(let i=0; i<breaks; i++) {
+                            let sObj = opp.shield.pop();
+                            opp.hand.push(sObj.card);
+                        }
+                        log(`${attacker.name} がシールドを ${breaks} 枚ブレイクしました！`, 'text-yellow-300');
+                    } else {
+                        state.winner = state.currentTurnPlayer.id;
+                        log(`ダイレクトアタック成功！ プレイヤー${state.currentTurnPlayer.id}の勝利です！`, 'text-green-300 text-xl font-bold');
+                        checkWin();
+                    }
+                } else {
+                    const oppIdx = parseInt(target);
+                    const defender = opp.bz[oppIdx];
+                    if (!defender) throw "防御クリーチャーの指定が不正です。";
+                    if (!defender.tapped) throw "アンタップ状態のクリーチャーには攻撃できません。";
+
+                    attacker.tapped = true;
+                    log(`${attacker.name} が ${defender.name} に攻撃！`, 'text-orange-400');
+                    if (attacker.power > defender.power) {
+                        log(`${defender.name} は破壊されました。`, 'text-gray-400');
+                        destroyByRef(opp, defender);
+                    } else if (attacker.power < defender.power) {
+                        log(`${attacker.name} は破壊されました。`, 'text-gray-400');
+                        destroyByRef(state.currentTurnPlayer, attacker);
+                    } else {
+                        log(`互いのクリーチャーがバトルで相討ちになり、両方破壊されました。`, 'text-gray-400');
+                        destroyByRef(opp, defender);
+                        destroyByRef(state.currentTurnPlayer, attacker);
+                    }
+                }
+                return;
+            }
+
+            throw `未知のコマンドです '${cmd}'。ネームドコマンド一覧は 'help' をご覧ください。`;
+        }
+
+        function showHelp() {
+            log("==================================", "text-yellow-400 font-bold");
+            log("         【CLI コマンド一覧】        ", "text-yellow-400 font-bold");
+            log("==================================", "text-yellow-400 font-bold");
+            log("help : コマンド一覧を表示する", "text-blue-300");
+            log("reset : ゲームを初期状態にリセットする", "text-blue-300");
+            log("draw [枚数] : 山札からカードを引く (例: draw 2)", "text-blue-300");
+            log("end : ターンプレイヤーを切り替える", "text-blue-300");
+            log("charge <手札idx> : 手札からマナゾーンへチャージする", "text-blue-300");
+            log("play <手札idx> : マナを支払ってカードを使う(召喚/詠唱)", "text-blue-300");
+            log("attack <自分のbz idx> p : プレイヤーに攻撃する", "text-blue-300");
+            log("attack <自分のbz idx> <相手bz idx> : 相手クリーチャーに攻撃", "text-blue-300");
+            log("editdeck : デッキ・特殊ゾーンの編集画面を開く", "text-blue-300");
+            log("move <srcP> <srcZone> <idx> <dstP> <dstZone>", "text-purple-300");
+            log("  └ サンドボックス移動 (例: move p1 hand 0 p1 bz)", "text-purple-300");
+            log("  └ プレイヤー: p1, p2 / ゾーン: hand, mana, bz, shield, graveyard, deck(上), deck_bottom(下), superdim, supergr", "text-purple-300");
+            log("==================================", "text-yellow-400 font-bold");
+        }
+
+        document.getElementById('cli-input').addEventListener('keydown', (e) => {
+            if(e.key === 'Enter') {
+                const val = e.target.value.trim();
+                if(val) {
+                    log('> ' + val, 'text-gray-500');
+                    try {
+                        executeCommand(val);
+                    } catch (err) {
+                        log('エラー: ' + err, 'text-red-500');
+                    }
+                    e.target.value = '';
+                    render();
+                }
+            }
+        });
+
+        function log(msg, color='text-green-400') {
+            const out = document.getElementById('cli-output');
+            const div = document.createElement('div');
+            div.className = color;
+            div.innerText = msg;
+            out.appendChild(div);
+            out.scrollTop = out.scrollHeight;
+        }
+
+        function toggleSandbox() {
+            state.sandboxMode = !state.sandboxMode;
+            const btn = document.getElementById('btn-sandbox');
+            if (state.sandboxMode) {
+                btn.className = "bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded shadow transition active:scale-95 text-sm animate-pulse";
+                btn.innerText = "サンドボックス: ON";
+                log("サンドボックスモードが有効になりました。", "text-purple-300 font-bold");
+            } else {
+                btn.className = "bg-gray-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded shadow transition active:scale-95 text-sm";
+                btn.innerText = "サンドボックス: OFF";
+                log("サンドボックスモードが無効になりました。", "text-gray-400");
+            }
+        }
+
+        function onCardClickGeneric(player, zone, index) {
+            if (state.sandboxMode) {
+                state.sandboxTarget = { player, zone, index };
+                let cardObj = player[zone][index];
+                let card = (zone === 'shield') ? cardObj.card : cardObj;
+                const zoneNameMap = { hand: '手札', mana: 'マナゾーン', bz: 'バトルゾーン', shield: 'シールド', graveyard: '墓地', deck: '山札', superdim: '超次元ゾーン', supergr: '超GRゾーン' };
+                document.getElementById('sandbox-target-name').innerText = `対象: プレイヤー${player.id} の ${zoneNameMap[zone]} にある「${card ? card.name : '裏向きカード'}」`;
+                document.getElementById('sandbox-owner-label').innerText = `プレイヤー${player.id} のゾーンへ移動`;
+                document.getElementById('sandbox-modal').classList.remove('hidden');
+                return;
+            }
+            
+            if (zone === 'hand') onHandCardClick(player, index);
+            else if (zone === 'bz') onBzCardClick(player, index);
+            else if (zone === 'mana') {
+                const card = player.mana[index];
+                card.tapped = !card.tapped;
+                render();
+            }
+        }
+
+        function tapCardFromModal() {
+            if (!state.sandboxTarget) return;
+            const { player, zone, index } = state.sandboxTarget;
+            let cardObj = player[zone][index];
+            let card = (zone === 'shield') ? cardObj.card : cardObj;
+            if (!card) return;
+            card.tapped = !card.tapped;
+            log(`[サンドボックス] プレイヤー${player.id}のカード「${card.name}」のタップ状態を切り替えました。`, 'text-purple-300');
+            render();
+            closeMoveModal();
+        }
+
+        function closeMoveModal() {
+            document.getElementById('sandbox-modal').classList.add('hidden');
+            state.sandboxTarget = null;
+        }
+
+        let currentInspectedZone = null;
+
+        function openZoneModal(player, zoneName, titleText) {
+            currentInspectedZone = { player, zoneName };
+            document.getElementById('zone-view-title').innerText = titleText;
+            renderZoneModalContent();
+            document.getElementById('zone-view-modal').classList.remove('hidden');
+        }
+
+        function closeZoneModal() {
+            document.getElementById('zone-view-modal').classList.add('hidden');
+            currentInspectedZone = null;
+        }
+
+        function renderZoneModalContent() {
+            if (!currentInspectedZone || !currentInspectedZone.player) return;
+            const container = document.getElementById('zone-view-content');
+            container.innerHTML = '';
+            const player = currentInspectedZone.player;
+            const zoneName = currentInspectedZone.zoneName;
+            
+            let items = player[zoneName];
+            if (zoneName === 'deck') {
+                items = [...player[zoneName]].reverse();
+            }
+
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="text-gray-400 py-8">カードがありません。</div>';
+                return;
+            }
+
+            items.forEach((item, displayIdx) => {
+                const idx = (zoneName === 'deck') ? (player[zoneName].length - 1 - displayIdx) : displayIdx;
+                
+                const isShieldZone = zoneName === 'shield';
+                let cardObj = isShieldZone ? item.card : item;
+                let shieldId = isShieldZone ? item.shieldId : idx;
+                const shieldKey = `p${player.id}-${shieldId}`;
+                const isRevealed = isShieldZone ? !!revealedShields[shieldKey] : true;
+
+                if (!isRevealed) {
+                    const el = document.createElement('div');
+                    el.className = "card w-24 h-32 md:w-28 md:h-36 rounded border-2 border-white bg-gradient-to-b from-blue-700 to-blue-900 shrink-0 shadow-lg cursor-pointer hover:ring-2 hover:ring-yellow-400 relative flex flex-col items-center justify-center p-2 select-none";
+                    
+                    const idxBadge = document.createElement('div');
+                    idxBadge.className = 'absolute -top-2 -left-2 bg-black text-white rounded-full w-6 h-6 flex items-center justify-center text-[10px] font-bold z-10 border border-gray-600 shadow';
+                    idxBadge.innerText = `#${shieldId}`;
+                    el.appendChild(idxBadge);
+
+                    const label = document.createElement('div');
+                    label.className = "text-xs text-white font-bold text-center";
+                    label.innerText = "シールド\n(クリックで確認)";
+                    el.appendChild(label);
+
+                    el.onclick = () => {
+                        revealedShields[shieldKey] = true;
+                        renderZoneModalContent();
+                    };
+                    container.appendChild(el);
+                } else {
+                    const cardEl = createCardEl(cardObj, isShieldZone ? `#${shieldId}` : idx, () => {
+                        if (state.sandboxMode) {
+                            closeZoneModal();
+                            onCardClickGeneric(player, zoneName, idx);
+                        }
+                    }, false);
+
+                    if (isShieldZone) {
+                        const hideBtn = document.createElement('button');
+                        hideBtn.className = "absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white rounded px-1.5 py-0.5 text-[10px] font-bold z-20 shadow";
+                        hideBtn.innerText = "伏せる";
+                        hideBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            revealedShields[shieldKey] = false;
+                            renderZoneModalContent();
+                        };
+                        cardEl.appendChild(hideBtn);
+                    }
+                    container.appendChild(cardEl);
+                }
+            });
+        }
+
+        function executeMoveToSamePlayer(targetZone) {
+            if (!state.sandboxTarget) return;
+            try {
+                moveCard(state.sandboxTarget.player.id, state.sandboxTarget.zone, state.sandboxTarget.index, state.sandboxTarget.player.id, targetZone);
+            } catch(err) {
+                log('移動エラー: ' + err, 'text-red-500');
+            }
+            closeMoveModal();
+            render();
+            if (currentInspectedZone) {
+                renderZoneModalContent();
+            }
+        }
+
+        function moveCard(srcPId, srcZone, srcIndex, dstPId, dstZone) {
+            const srcPlayer = srcPId === 1 ? state.p1 : state.p2;
+            const dstPlayer = dstPId === 1 ? state.p1 : state.p2;
+
+            if (!srcPlayer || !dstPlayer) throw "プレイヤーの指定が不正です。";
+            let item = srcPlayer[srcZone][srcIndex];
+            if (item === undefined) throw "対象のカードが見つかりません。";
+
+            srcPlayer[srcZone].splice(srcIndex, 1);
+            
+            let card = (srcZone === 'shield') ? item.card : item;
+            card.tapped = false;
+            card.summoningSickness = false;
+
+            if (dstZone === 'deck_bottom') {
+                dstPlayer.deck.unshift(card);
+            } else if (dstZone === 'shield') {
+                const newId = shieldCounters[dstPlayer.id]++;
+                dstPlayer.shield.push({ card: card, shieldId: newId });
+            } else {
+                dstPlayer[dstZone].push(card);
+            }
+            
+            const zoneNameMap = { hand: '手札', mana: 'マナゾーン', bz: 'バトルゾーン', shield: 'シールド', graveyard: '墓地', deck: '山札(上)', deck_bottom: '山札(下)', superdim: '超次元ゾーン', supergr: '超GRゾーン' };
+            log(`[サンドボックス] プレイヤー${srcPId}の${zoneNameMap[srcZone]}から プレイヤー${dstPId}の${zoneNameMap[dstZone]}へ「${card.name}」を移動しました。`, 'text-purple-300');
+        }
+
+        function mapZoneName(z) {
+            const map = { 
+                '手札': 'hand', 'hand': 'hand', 
+                'マナ': 'mana', 'mana': 'mana', 'マナゾーン': 'mana', 
+                'バトルゾーン': 'bz', 'bz': 'bz', 
+                'シールド': 'shield', 'shield': 'shield', 
+                '墓地': 'graveyard', 'grave': 'graveyard', 'graveyard': 'graveyard', 
+                '山札': 'deck', 'deck': 'deck', 'deck_top': 'deck',
+                '山札下': 'deck_bottom', 'deck_bottom': 'deck_bottom', 'bottom': 'deck_bottom',
+                '超次元': 'superdim', 'superdim': 'superdim',
+                '超gr': 'supergr', 'supergr': 'supergr', 'gr': 'supergr'
+            };
+            return map[z.toLowerCase()] || null;
+        }
+
+        function onHandCardClick(player, index) {
+            if (player !== state.currentTurnPlayer) return;
+            try {
+                executeCommand(`play ${index}`);
+            } catch (err) {
+                try {
+                    executeCommand(`charge ${index}`);
+                } catch (err2) {
+                    log(err, 'text-red-500');
+                }
+            }
+            render();
+        }
+
+        function onBzCardClick(player, index) {
+            if (state.winner) return;
+
+            if (player === state.currentTurnPlayer) {
+                const attacker = player.bz[index];
+                if (attacker.tapped) {
+                    attacker.tapped = false;
+                    log(`${attacker.name} をアンタップしました。`, 'text-blue-300');
+                    render();
+                    return;
+                }
+                selectedAttackerIndex = index;
+                log(`[${index}] ${attacker.name} を選択しました。攻撃する相手のシールドまたはタップされたクリーチャーをクリックしてください。`, 'text-yellow-300');
+                render();
+            } 
+            else if (player !== state.currentTurnPlayer && selectedAttackerIndex !== null) {
+                try {
+                    executeCommand(`attack ${selectedAttackerIndex} ${index}`);
+                } catch(err) {
+                    log(err, 'text-red-500');
+                }
+                selectedAttackerIndex = null;
+                render();
+            }
+        }
+
+        function checkWin() {
+            if (state.winner) {
+                document.getElementById('victory-overlay').classList.remove('hidden');
+                document.getElementById('victory-text').innerText = `プレイヤー ${state.winner}\n勝利！！！`;
+            }
+        }
+
+        function createCardEl(card, indexBadgeText, onClick, isShield = false, customClasses = "") {
+            const el = document.createElement('div');
+            
+            if (isShield) {
+                el.className = "card w-24 h-32 md:w-28 md:h-36 rounded border-2 border-white bg-gradient-to-b from-blue-700 to-blue-900 shrink-0 shadow-lg cursor-pointer hover:ring-2 hover:ring-yellow-400 relative flex items-center justify-center";
+                const idxBadge = document.createElement('div');
+                idxBadge.className = 'absolute -top-2 -left-2 bg-black text-white rounded-full px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center text-[10px] font-bold z-10 border border-gray-600 shadow';
+                idxBadge.innerText = indexBadgeText;
+                el.appendChild(idxBadge);
+                
+                const label = document.createElement('div');
+                label.className = "text-xs text-white font-bold text-center px-1 truncate w-full";
+                label.innerText = "シールド";
+                el.appendChild(label);
+
+                if(onClick) el.onclick = onClick;
+                return el;
+            }
+            
+            let baseBorder = 'border-blue-500';
+            let baseBg = 'bg-blue-50';
+            if (card.type === 'creature') {
+                baseBorder = 'border-orange-500';
+                baseBg = 'bg-orange-50';
+            } else if (card.type === 'psychic') {
+                baseBorder = 'border-purple-600';
+                baseBg = 'bg-purple-50';
+            } else if (card.type === 'gr') {
+                baseBorder = 'border-pink-500';
+                baseBg = 'bg-pink-50';
+            } else if (card.type === 'crossgear') {
+                baseBorder = 'border-amber-600';
+                baseBg = 'bg-amber-50';
+            } else if (card.type === 'castle') {
+                baseBorder = 'border-cyan-600';
+                baseBg = 'bg-cyan-50';
+            } else if (card.type === 'gcastle') {
+                baseBorder = 'border-teal-600';
+                baseBg = 'bg-teal-50';
+            } else if (card.type === 'd2field') {
+                baseBorder = 'border-indigo-600';
+                baseBg = 'bg-indigo-50';
+            } else if (card.type === 'field') {
+                baseBorder = 'border-sky-600';
+                baseBg = 'bg-sky-50';
+            } else if (card.type === 'tamaseed') {
+                baseBorder = 'border-emerald-600';
+                baseBg = 'bg-emerald-50';
+            } else if (card.type === 'kingcell') {
+                baseBorder = 'border-rose-600';
+                baseBg = 'bg-rose-50';
+            }
+            
+            el.className = `card w-28 h-36 md:w-32 md:h-40 border-2 rounded p-2 text-xs md:text-sm flex flex-col relative select-none text-black transition-transform cursor-pointer hover:ring-2 hover:ring-blue-400 shrink-0 shadow-md ${baseBorder} ${baseBg} ${customClasses}`;
+            
+            const idxBadge = document.createElement('div');
+            idxBadge.className = 'absolute -top-2 -left-2 bg-black text-white rounded-full px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center text-[10px] font-bold z-10 border border-gray-600 shadow';
+            idxBadge.innerText = indexBadgeText;
+            el.appendChild(idxBadge);
+
+            const costEl = document.createElement('div');
+            costEl.className = 'absolute top-0 right-0 bg-blue-600 text-white rounded-bl px-2 py-0.5 font-bold shadow-sm text-xs';
+            costEl.innerText = card.cost;
+            el.appendChild(costEl);
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'font-bold leading-tight mt-5 truncate w-full text-center text-xs md:text-sm';
+            nameEl.innerText = card.name;
+            nameEl.title = card.name;
+            el.appendChild(nameEl);
+            
+            const typeEl = document.createElement('div');
+            typeEl.className = 'text-center text-gray-600 scale-90 origin-top mt-1 whitespace-nowrap';
+            let typeLabel = '呪文';
+            if (card.type === 'creature') typeLabel = card.breaker > 1 ? `W・ブレイカー` : `クリーチャー`;
+            else if (card.type === 'psychic') typeLabel = '超次元';
+            else if (card.type === 'gr') typeLabel = '超GR';
+            else if (card.type === 'crossgear') typeLabel = 'クロスギア';
+            else if (card.type === 'castle') typeLabel = '城';
+            else if (card.type === 'gcastle') typeLabel = 'G城';
+            else if (card.type === 'd2field') typeLabel = 'D2フィールド';
+            else if (card.type === 'field') typeLabel = 'その他フィールド';
+            else if (card.type === 'tamaseed') typeLabel = 'タマシード';
+            else if (card.type === 'kingcell') typeLabel = 'キングセル';
+            typeEl.innerText = typeLabel;
+            el.appendChild(typeEl);
+
+            if (card.type !== 'spell') {
+                const powerEl = document.createElement('div');
+                powerEl.className = 'absolute bottom-1 right-2 font-extrabold text-red-600 text-xs md:text-sm';
+                powerEl.innerText = card.power;
+                el.appendChild(powerEl);
+            }
+
+            if(onClick) el.onclick = onClick;
+            return el;
+        }
+
+        function render() {
+            if (!state.currentTurnPlayer) state.currentTurnPlayer = state.p1;
+            document.getElementById('turn-info').innerText = `プレイヤー${state.currentTurnPlayer.id} ターン`;
+            document.getElementById('turn-info').className = `text-xl font-extrabold ${state.currentTurnPlayer.id === 1 ? 'text-blue-400' : 'text-red-400'}`;
+
+            renderPlayerArea(state.p1, 'p1');
+            renderPlayerArea(state.p2, 'p2');
+            checkWin();
+        }
+
+        function renderPlayerArea(player, prefix) {
+            // Hand
+            const handEl = document.getElementById(`${prefix}-hand`);
+            handEl.innerHTML = '';
+            player.hand.forEach((c, i) => {
+                handEl.appendChild(createCardEl(c, i, () => onCardClickGeneric(player, 'hand', i)));
+            });
+
+            // Super Dimensional Zone
+            document.getElementById(`${prefix}-superdim-count`).innerText = player.superdim.length;
+            const superDimEl = document.getElementById(`${prefix}-superdim`);
+            superDimEl.innerHTML = '';
+            player.superdim.slice(0, 2).forEach((c, i) => {
+                superDimEl.appendChild(createCardEl(c, i, () => openZoneModal(player, 'superdim', `プレイヤー${player.id} 超次元ゾーン`)));
+            });
+            if (player.superdim.length > 2) {
+                const moreEl = document.createElement('div');
+                moreEl.className = "text-xs text-purple-300 font-bold bg-purple-900/60 p-1 rounded cursor-pointer hover:bg-purple-800";
+                moreEl.innerText = `+${player.superdim.length - 2}`;
+                moreEl.onclick = (e) => { e.stopPropagation(); openZoneModal(player, 'superdim', `プレイヤー${player.id} 超次元ゾーン`); };
+                superDimEl.appendChild(moreEl);
+            }
+
+            // Super GR Zone
+            document.getElementById(`${prefix}-supergr-count`).innerText = player.supergr.length;
+            const superGrEl = document.getElementById(`${prefix}-supergr`);
+            superGrEl.innerHTML = '';
+            player.supergr.slice(0, 2).forEach((c, i) => {
+                superGrEl.appendChild(createCardEl(c, i, () => openZoneModal(player, 'supergr', `プレイヤー${player.id} 超GRゾーン`)));
+            });
+            if (player.supergr.length > 2) {
+                const moreEl = document.createElement('div');
+                moreEl.className = "text-xs text-pink-300 font-bold bg-pink-900/60 p-1 rounded cursor-pointer hover:bg-pink-800";
+                moreEl.innerText = `+${player.supergr.length - 2}`;
+                moreEl.onclick = (e) => { e.stopPropagation(); openZoneModal(player, 'supergr', `プレイヤー${player.id} 超GRゾーン`); };
+                superGrEl.appendChild(moreEl);
+            }
+
+            // Graveyard Zone
+            document.getElementById(`${prefix}-graveyard-count`).innerText = player.graveyard.length;
+            const graveEl = document.getElementById(`${prefix}-graveyard`);
+            graveEl.innerHTML = '';
+            player.graveyard.slice(0, 2).forEach((c, i) => {
+                graveEl.appendChild(createCardEl(c, i, () => openZoneModal(player, 'graveyard', `プレイヤー${player.id} 墓地`)));
+            });
+            if (player.graveyard.length > 2) {
+                const moreEl = document.createElement('div');
+                moreEl.className = "text-xs text-gray-300 font-bold bg-gray-700 p-1 rounded cursor-pointer hover:bg-gray-600";
+                moreEl.innerText = `+${player.graveyard.length - 2}`;
+                moreEl.onclick = (e) => { e.stopPropagation(); openZoneModal(player, 'graveyard', `プレイヤー${player.id} 墓地`); };
+                graveEl.appendChild(moreEl);
+            }
+
+            // Mana
+            const manaEl = document.getElementById(`${prefix}-mana`);
+            manaEl.innerHTML = '';
+            player.mana.forEach((c, i) => {
+                let transformStr = "rotate(180deg)";
+                if (c.tapped) transformStr = "rotate(270deg)";
+                let el = createCardEl(c, i, () => onCardClickGeneric(player, 'mana', i));
+                el.style.transform = transformStr;
+                manaEl.appendChild(el);
+            });
+
+            // Battle Zone
+            const bzEl = document.getElementById(`${prefix}-bz`);
+            bzEl.innerHTML = '';
+            player.bz.forEach((c, i) => {
+                let el = createCardEl(c, i, () => onCardClickGeneric(player, 'bz', i));
+                if(c.tapped) el.style.transform = "rotate(90deg)";
+                
+                if(selectedAttackerIndex === i && player === state.currentTurnPlayer) {
+                    el.classList.add('ring-4', 'ring-red-500', 'animate-pulse');
+                }
+                bzEl.appendChild(el);
+            });
+
+            // Shield
+            const shieldEl = document.getElementById(`${prefix}-shield`);
+            shieldEl.innerHTML = '';
+            player.shield.forEach((sObj, i) => {
+                shieldEl.appendChild(createCardEl(sObj.card, `#${sObj.shieldId}`, () => openZoneModal(player, 'shield', `プレイヤー${player.id} シールドゾーン`), true));
+            });
+
+            // Deck
+            document.getElementById(`${prefix}-deck-count`).innerText = player.deck.length;
+        }
+
+        function openDeckEditor() {
+            document.getElementById('p1-deck-input').value = p1DeckStr;
+            document.getElementById('p2-deck-input').value = p2DeckStr;
+            document.getElementById('p1-superdim-input').value = p1SuperDimStr;
+            document.getElementById('p2-superdim-input').value = p2SuperDimStr;
+            document.getElementById('p1-supergr-input').value = p1SuperGRStr;
+            document.getElementById('p2-supergr-input').value = p2SuperGRStr;
+            document.getElementById('deck-editor-modal').classList.remove('hidden');
+        }
+
+        function closeDeckEditor() {
+            document.getElementById('deck-editor-modal').classList.add('hidden');
+        }
+
+        function applyDeckAndRestart() {
+            p1DeckStr = document.getElementById('p1-deck-input').value;
+            p2DeckStr = document.getElementById('p2-deck-input').value;
+            p1SuperDimStr = document.getElementById('p1-superdim-input').value;
+            p2SuperDimStr = document.getElementById('p2-superdim-input').value;
+            p1SuperGRStr = document.getElementById('p1-supergr-input').value;
+            p2SuperGRStr = document.getElementById('p2-supergr-input').value;
+            closeDeckEditor();
+            log('========================', 'text-gray-500');
+            log('デッキ・超次元・超GRゾーンが更新され、ゲームが再スタートしました。', 'text-green-300 font-bold');
+            initGame();
+            render();
+        }
+
+        window.onload = () => {
+            initGame();
+            render();
+            if (window.innerWidth > 768) {
+                document.getElementById('cli-input').focus();
+            }
+        };
+    </script>
+</body>
+</html>
